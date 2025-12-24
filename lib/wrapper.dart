@@ -3,6 +3,8 @@ import 'package:chat_communication/auth/login.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import 'auth/veryfyemail.dart';
+
 class Wrapper extends StatefulWidget {
   const Wrapper({super.key});
 
@@ -14,14 +16,20 @@ class _WrapperState extends State<Wrapper> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: StreamBuilder(stream: FirebaseAuth.instance.authStateChanges(),
-          builder: (context, snapshot){
-             if(snapshot.hasData){
-               return homepage();
-          }else{
-               return Login();
+      body: StreamBuilder(
+        stream: FirebaseAuth.instance.authStateChanges(),
+        builder: (context, snapshot) {
+          if (snapshot.hasData) {
+            print(snapshot.data);
+            if (snapshot.data!.emailVerified) {
+              return homepage();
+            } else {
+              return Veryfyemail();
+            }
+          } else {
+            return Login();
           }
-          }
+        },
       ),
     );
   }

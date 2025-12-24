@@ -12,15 +12,28 @@ class Signup extends StatefulWidget {
 }
 
 class _SignupState extends State<Signup> {
+  bool isloading=false;
   TextEditingController email =TextEditingController();
   TextEditingController password =TextEditingController();
   signup()async{
-    await FirebaseAuth.instance.createUserWithEmailAndPassword(email: email.text, password: password.text);
-    Get.offAll(Wrapper());
+    setState(() {
+      isloading=true;
+    });try{
+      await FirebaseAuth.instance.createUserWithEmailAndPassword(email: email.text, password: password.text);
+      Get.offAll(Wrapper());
+    }on FirebaseAuthException catch(e) {
+      Get.snackbar("error msg", e.code);
+    }catch(e){
+      Get.snackbar("error msg", e.toString());
+    }
+    setState(() {
+      isloading=false;
+    });
+
   }
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return isloading?Center(child: CircularProgressIndicator(),): Scaffold(
       backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.deepPurple,
