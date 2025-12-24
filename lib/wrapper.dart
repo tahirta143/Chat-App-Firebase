@@ -22,7 +22,7 @@ class _WrapperState extends State<Wrapper> {
           if (snapshot.hasData) {
             print(snapshot.data);
             if (snapshot.data!.emailVerified) {
-              return homepage();
+              return Homepage();
             } else {
               return Veryfyemail();
             }
