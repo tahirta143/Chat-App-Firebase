@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1083985829318",
+    "project_id": "fire-setup-f7bcc",
+    "storage_bucket": "fire-setup-f7bcc.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1083985829318:android:4bf7678bb58a02ada7a6c7",
+        "android_client_info": {
+          "package_name": "com.example.chat_communication"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBhV1no09i55uDPKnqDoVHwQrwMg4W3VhY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
