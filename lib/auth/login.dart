@@ -1,9 +1,12 @@
 import 'package:chat_communication/auth/forgot.dart';
 import 'package:chat_communication/auth/signup.dart';
+// import 'package:chat_communication/auth/verify_email.dart';
+import 'package:chat_communication/auth/veryfyemail.dart';
+import 'package:chat_communication/homepage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:get/get_core/src/get_main.dart';
 
 class Login extends StatefulWidget {
   const Login({super.key});
@@ -13,110 +16,160 @@ class Login extends StatefulWidget {
 }
 
 class _LoginState extends State<Login> {
-  bool isloading=false;
-  TextEditingController email =TextEditingController();
-  TextEditingController password =TextEditingController();
-  signIn()async{
-    setState(() {
-      isloading=true;
-    });
-    try{
-      await FirebaseAuth.instance.signInWithEmailAndPassword(email: email.text, password: password.text);
-    }on FirebaseAuthException catch(e) {
-      Get.snackbar("error msg", e.code);
-    }catch(e){
-      Get.snackbar("error msg", e.toString());
+  bool isLoading = false;
+  TextEditingController emailController = TextEditingController();
+  TextEditingController passwordController = TextEditingController();
+
+  Future<void> signIn() async {
+    final email = emailController.text.trim();
+    final password = passwordController.text.trim();
+
+    if (email.isEmpty || password.isEmpty) {
+      Get.snackbar('Error', 'Please fill all fields',
+          snackPosition: SnackPosition.BOTTOM, margin: const EdgeInsets.all(20));
+      return;
     }
+
     setState(() {
-      isloading=false;
+      isLoading = true;
     });
+
+    try {
+      // Sign in with Firebase Auth
+      UserCredential userCredential = await FirebaseAuth.instance
+          .signInWithEmailAndPassword(email: email, password: password);
+
+      final user = userCredential.user!;
+
+      // Ensure Firestore document exists
+      final userDoc = FirebaseFirestore.instance.collection('users').doc(user.uid);
+      final docSnapshot = await userDoc.get();
+
+      if (!docSnapshot.exists) {
+        await userDoc.set({
+          'uid': user.uid,
+          'name': user.email!.split('@')[0], // default name from email
+          'email': user.email,
+          'createdAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      // Navigate based on email verification
+      if (!user.emailVerified) {
+        Get.offAll(() => const VerifyEmail());
+      } else {
+        Get.offAll(() => const Homepage());
+      }
+    } on FirebaseAuthException catch (e) {
+      Get.snackbar('Error', e.message ?? e.code,
+          snackPosition: SnackPosition.BOTTOM, margin: const EdgeInsets.all(20));
+    } catch (e) {
+      Get.snackbar('Error', e.toString(),
+          snackPosition: SnackPosition.BOTTOM, margin: const EdgeInsets.all(20));
+    } finally {
+      setState(() {
+        isLoading = false;
+      });
+    }
   }
+
   @override
   Widget build(BuildContext context) {
-    return isloading?Center(child: CircularProgressIndicator(),): Scaffold(
+    return Scaffold(
+
       backgroundColor: Colors.white,
       appBar: AppBar(
         backgroundColor: Colors.deepPurple,
         foregroundColor: Colors.white,
-        title: Text("Login page"),
+        title: const Text("Login"),
         centerTitle: true,
       ),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              keyboardType: TextInputType.emailAddress,
-              controller: email,
-              decoration: InputDecoration(
-                hintText: "Enter email",
-                filled: true,
-                fillColor: Colors.grey.shade100,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.black),
-                ),
+      body: isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+        child: SizedBox(
+          height: MediaQuery.of(context).size.height,
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  TextField(
+                    controller: emailController,
+                    keyboardType: TextInputType.emailAddress,
+                    decoration: InputDecoration(
+                      hintText: "Enter email",
+                      filled: true,
+                      fillColor: Colors.grey.shade100,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: passwordController,
+                    obscureText: true,
+                    decoration: InputDecoration(
+                      hintText: "Enter password",
+                      filled: true,
+                      fillColor: Colors.grey.shade100,
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 14,
+                      ),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                        onPressed: () => Get.to(() => const Forgot()),
+                        child: const Text("Forgot Password?")),
+                  ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: signIn,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.deepPurple,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 100,
+                        vertical: 14,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text(
+                      "Login",
+                      style: TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  const SizedBox(height: 30),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text("Don't have an account? "),
+                      TextButton(
+                          onPressed: () => Get.to(() => const Signup()),
+                          child: const Text("Register now")),
+                    ],
+                  ),
+                ],
               ),
             ),
           ),
-          SizedBox(height: 5,),
-          Padding(
-            padding: const EdgeInsets.all(8.0),
-            child: TextField(
-              keyboardType: TextInputType.number,
-              controller: password,
-              decoration: InputDecoration(
-                hintText: "Enter password",
-                filled: true,
-                fillColor: Colors.grey.shade100,
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: Colors.black),
-                ),
-              ),
-            ),
-          ),
-          TextButton(onPressed: (()=>Get.to(Forgot())), child: Text("Forgot Password")),
-          SizedBox(height: 20,),
-          ElevatedButton(
-            onPressed: (()=>signIn()) ,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.deepPurple,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 190,
-                vertical: 14,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-            ),
-            child: const Text(
-              "Login",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-          ),
-          SizedBox(height: 30,),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Text("If you don't have an account"),
-              TextButton(onPressed: (()=>Get.to(Signup())), child: Text("Register now")),
-            ],
-          ),
-
-        ],
+        ),
       ),
     );
   }

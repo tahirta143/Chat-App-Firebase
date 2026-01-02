@@ -7,12 +7,12 @@ plugins {
 
 android {
     namespace = "com.example.chat_communication"
-    compileSdk = 34 // Or flutter.compileSdkVersion if available
+    compileSdk = 36 // Or flutter.compileSdkVersion if available
 
     defaultConfig {
         applicationId = "com.example.chat_communication"
         minSdk = flutter.minSdkVersion // Or flutter.minSdkVersion
-        targetSdk = 34 // Or flutter.targetSdkVersion
+        targetSdk = 36 // Or flutter.targetSdkVersion
         versionCode = 1 // Or flutter.versionCode
         versionName = "1.0" // Or flutter.versionName
     }
