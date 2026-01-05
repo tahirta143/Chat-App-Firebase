@@ -8,7 +8,6 @@ import 'package:get/get.dart';
 class Homepage extends StatelessWidget {
   const Homepage({super.key});
 
-  // Logout method
   void _logout(BuildContext context) async {
     await FirebaseAuth.instance.signOut();
     Get.offAll(() => const Login());
@@ -27,10 +26,7 @@ class Homepage extends StatelessWidget {
         ),
         actions: [
           IconButton(
-            icon: const Icon(
-              Icons.logout,
-              color: Colors.white,
-            ),
+            icon: const Icon(Icons.logout, color: Colors.white),
             tooltip: 'Logout',
             onPressed: () => _logout(context),
           ),
@@ -39,7 +35,9 @@ class Homepage extends StatelessWidget {
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance.collection("users").snapshots(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
+          if (!snapshot.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
 
           final users = snapshot.data!.docs
               .where((doc) => doc.id != currentUserId)
@@ -58,7 +56,6 @@ class Homepage extends StatelessWidget {
               final phone = userData['phone'] ?? 'No phone';
               final name = userData['name'] ?? 'No Name';
 
-              // Use StreamBuilder to listen for unread messages
               final chatId = getChatId(currentUserId, user.id);
 
               return StreamBuilder<QuerySnapshot>(
@@ -70,22 +67,28 @@ class Homepage extends StatelessWidget {
                     .where('status', isNotEqualTo: 'seen')
                     .snapshots(),
                 builder: (context, msgSnapshot) {
-                  bool hasUnread = false;
-
-                  if (msgSnapshot.hasData && msgSnapshot.data!.docs.isNotEmpty) {
-                    hasUnread = true;
-                  }
+                  bool hasUnread =
+                      msgSnapshot.hasData && msgSnapshot.data!.docs.isNotEmpty;
 
                   return Padding(
                     padding: const EdgeInsets.all(8.0),
                     child: Card(
                       elevation: 3,
                       child: ListTile(
-                        leading: hasUnread
-                            ? const Icon(Icons.circle, color: Colors.green, size: 12)
-                            : null,
+                        leading: CircleAvatar(
+                          backgroundColor: Colors.deepPurple.shade100,
+                          child: Text(
+                            name.isNotEmpty ? name[0].toUpperCase() : "?",
+                            style: const TextStyle(
+                                color: Colors.deepPurple,
+                                fontWeight: FontWeight.bold),
+                          ),
+                        ),
+
                         title: Text(name),
                         subtitle: Text(phone),
+
+
                         onTap: () {
                           Navigator.push(
                             context,
@@ -110,10 +113,9 @@ class Homepage extends StatelessWidget {
     );
   }
 
-  /// Generate a consistent chatId between two users
   String getChatId(String userId1, String userId2) {
     return (userId1.compareTo(userId2) > 0)
-        ? '$userId2\_$userId1'
-        : '$userId1\_$userId2';
+        ? '${userId2}_$userId1'
+        : '${userId1}_$userId2';
   }
 }

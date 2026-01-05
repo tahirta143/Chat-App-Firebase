@@ -5,6 +5,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:intl/intl.dart';
 
 class ChatScreen extends StatefulWidget {
   final Map peerUser;
@@ -15,7 +16,8 @@ class ChatScreen extends StatefulWidget {
   State<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
+class _ChatScreenState extends State<ChatScreen>
+    with WidgetsBindingObserver {
   final TextEditingController _controller = TextEditingController();
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final picker = ImagePicker();
@@ -30,9 +32,11 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
 
     final user = FirebaseAuth.instance.currentUser;
+
     if (user != null && widget.peerUser['uid'] != null) {
       currentUserId = user.uid;
       chatId = _getChatId(currentUserId, widget.peerUser['uid']);
+
       _setOnline();
       _listenUserStatus();
       _markDelivered();
@@ -56,39 +60,42 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
   }
 
-  // Generate a stable chatId for two users
   String _getChatId(String uid1, String uid2) {
-    return uid1.hashCode <= uid2.hashCode ? '$uid1\_$uid2' : '$uid2\_$uid1';
+    return uid1.hashCode <= uid2.hashCode
+        ? '$uid1\_$uid2'
+        : '$uid2\_$uid1';
   }
 
-  // 🔵 Online
   void _setOnline() async {
     if (currentUserId.isEmpty) return;
+
     await _firestore.collection("users").doc(currentUserId).update({
       "online": true,
-      "lastSeen": FieldValue.serverTimestamp()
+      "lastSeen": FieldValue.serverTimestamp(),
     });
   }
 
-  // ⚪ Offline
   void _setOffline() async {
     if (currentUserId.isEmpty) return;
+
     await _firestore.collection("users").doc(currentUserId).update({
       "online": false,
-      "lastSeen": FieldValue.serverTimestamp()
+      "lastSeen": FieldValue.serverTimestamp(),
     });
   }
 
-  // 👁 Peer online/last seen
   void _listenUserStatus() {
     if (widget.peerUser['uid'] == null) return;
+
     _firestore
         .collection("users")
         .doc(widget.peerUser['uid'])
         .snapshots()
         .listen((doc) {
       if (!doc.exists) return;
+
       final data = doc.data() as Map<String, dynamic>? ?? {};
+
       if (data["online"] == true) {
         setState(() => statusText = "Online");
       } else {
@@ -106,9 +113,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     });
   }
 
-  // 📩 Mark messages delivered
   void _markDelivered() async {
     if (chatId.isEmpty) return;
+
     final query = await _firestore
         .collection('chats')
         .doc(chatId)
@@ -122,9 +129,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     }
   }
 
-  // 👀 Mark messages seen
   void _markSeen() {
     if (chatId.isEmpty) return;
+
     _firestore
         .collection('chats')
         .doc(chatId)
@@ -139,11 +146,14 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     });
   }
 
-  // ✉️ Send text
   void sendMessage() async {
     if (_controller.text.trim().isEmpty || chatId.isEmpty) return;
 
-    await _firestore.collection('chats').doc(chatId).collection('messages').add({
+    await _firestore
+        .collection('chats')
+        .doc(chatId)
+        .collection('messages')
+        .add({
       'senderId': currentUserId,
       'type': 'text',
       'content': _controller.text.trim(),
@@ -154,55 +164,95 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     _controller.clear();
   }
 
-  // 🖼 Send image
+  /// ===========================
+  ///   ⭐ SEND IMAGE
+  /// ===========================
   void pickAndSendImage() async {
     if (chatId.isEmpty) return;
 
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-    if (pickedFile == null) return;
+    try {
+      final pickedFile =
+      await picker.pickImage(source: ImageSource.gallery);
 
-    final file = File(pickedFile.path);
-    final ref = FirebaseStorage.instance
-        .ref()
-        .child('chat_images')
-        .child('${DateTime.now().millisecondsSinceEpoch}.jpg');
+      if (pickedFile == null) return;
 
-    await ref.putFile(file);
-    final url = await ref.getDownloadURL();
+      final file = File(pickedFile.path);
 
-    await _firestore.collection('chats').doc(chatId).collection('messages').add({
-      'senderId': currentUserId,
-      'type': 'image',
-      'content': url,
-      'timestamp': FieldValue.serverTimestamp(),
-      'status': 'sent'
-    });
+      final ref = FirebaseStorage.instance
+          .ref()
+          .child('chat_images')
+          .child('${DateTime.now().millisecondsSinceEpoch}.jpg');
+
+      final uploadTask = await ref.putFile(file);
+
+      final url = await uploadTask.ref.getDownloadURL();
+
+      await _firestore
+          .collection('chats')
+          .doc(chatId)
+          .collection('messages')
+          .add({
+        'senderId': currentUserId,
+        'type': 'image',
+        'content': url,
+        'timestamp': FieldValue.serverTimestamp(),
+        'status': 'sent'
+      });
+    } catch (e) {
+      print("IMAGE ERROR: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Failed to send image")),
+      );
+    }
   }
 
-  // 📄 Send document
+  /// ===========================
+  ///   ⭐ SEND DOCUMENT
+  /// ===========================
   void pickAndSendDocument() async {
     if (chatId.isEmpty) return;
 
-    final result = await FilePicker.platform.pickFiles();
-    if (result == null) return;
+    try {
+      final result = await FilePicker.platform.pickFiles();
 
-    final file = File(result.files.single.path!);
-    final ref = FirebaseStorage.instance
-        .ref()
-        .child('chat_documents')
-        .child('${DateTime.now().millisecondsSinceEpoch}_${result.files.single.name}');
+      if (result == null || result.files.single.path == null) return;
 
-    await ref.putFile(file);
-    final url = await ref.getDownloadURL();
+      final file = File(result.files.single.path!);
 
-    await _firestore.collection('chats').doc(chatId).collection('messages').add({
-      'senderId': currentUserId,
-      'type': 'document',
-      'content': url,
-      'fileName': result.files.single.name,
-      'timestamp': FieldValue.serverTimestamp(),
-      'status': 'sent'
-    });
+      final ref = FirebaseStorage.instance
+          .ref()
+          .child('chat_documents')
+          .child(
+          '${DateTime.now().millisecondsSinceEpoch}_${result.files.single.name}');
+
+      final uploadTask = await ref.putFile(file);
+
+      final url = await uploadTask.ref.getDownloadURL();
+
+      await _firestore
+          .collection('chats')
+          .doc(chatId)
+          .collection('messages')
+          .add({
+        'senderId': currentUserId,
+        'type': 'document',
+        'content': url,
+        'fileName': result.files.single.name,
+        'timestamp': FieldValue.serverTimestamp(),
+        'status': 'sent'
+      });
+    } catch (e) {
+      print("DOC ERROR: $e");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Failed to send document")),
+      );
+    }
+  }
+
+  String _formatTime(Timestamp? ts) {
+    if (ts == null) return "";
+    final date = ts.toDate();
+    return DateFormat('hh:mm a').format(date);
   }
 
   @override
@@ -210,20 +260,30 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
     if (chatId.isEmpty) {
       return Scaffold(
         appBar: AppBar(
-            backgroundColor: Colors.deepPurple,
-            title: Text(widget.peerUser['name'] ?? "Chat",style: TextStyle(color: Colors.white),)),
+          backgroundColor: Colors.deepPurple,
+          title: Text(
+            widget.peerUser['name'] ?? "Chat",
+            style: TextStyle(color: Colors.white),
+          ),
+        ),
         body: Center(child: Text("Invalid chat. Try again.")),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(backgroundColor: Colors.deepPurple,
-        leading: IconButton(onPressed: (){Navigator.pop(context);}, icon:Icon(Icons.arrow_back_ios,color: Colors.white,)),
+      appBar: AppBar(
+        backgroundColor: Colors.deepPurple,
+        leading: IconButton(
+          onPressed: () => Navigator.pop(context),
+          icon: Icon(Icons.arrow_back_ios, color: Colors.white),
+        ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(widget.peerUser['name'] ?? "Chat",style: TextStyle(color: Colors.white)),
-            Text(statusText, style: TextStyle(fontSize: 14, color: Colors.white70)),
+            Text(widget.peerUser['name'] ?? "Chat",
+                style: TextStyle(color: Colors.white)),
+            Text(statusText,
+                style: TextStyle(fontSize: 14, color: Colors.white70)),
           ],
         ),
       ),
@@ -238,7 +298,9 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   .orderBy('timestamp', descending: true)
                   .snapshots(),
               builder: (context, snapshot) {
-                if (!snapshot.hasData) return Center(child: CircularProgressIndicator());
+                if (!snapshot.hasData) {
+                  return Center(child: CircularProgressIndicator());
+                }
 
                 final messages = snapshot.data!.docs;
 
@@ -247,21 +309,30 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
                     final msg = messages[index];
-                    final msgData = msg.data() as Map<String, dynamic>? ?? {};
+                    final msgData =
+                        msg.data() as Map<String, dynamic>? ?? {};
                     final isMe = msgData['senderId'] == currentUserId;
 
                     Widget messageWidget;
+
                     if (msgData['type'] == 'text') {
                       messageWidget = Text(msgData['content'] ?? '');
                     } else if (msgData['type'] == 'image') {
-                      messageWidget = Image.network(msgData['content'] ?? '', width: 200);
+                      messageWidget = Image.network(
+                        msgData['content'] ?? '',
+                        width: 200,
+                      );
                     } else if (msgData['type'] == 'document') {
                       messageWidget = Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(Icons.insert_drive_file),
                           SizedBox(width: 5),
-                          Flexible(child: Text(msgData['fileName'] ?? 'Document')),
+                          Flexible(
+                            child: Text(
+                              msgData['fileName'] ?? 'Document',
+                            ),
+                          ),
                         ],
                       );
                     } else {
@@ -269,12 +340,17 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                     }
 
                     return Align(
-                      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                      alignment: isMe
+                          ? Alignment.centerRight
+                          : Alignment.centerLeft,
                       child: Container(
-                        margin: EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+                        margin: EdgeInsets.symmetric(
+                            vertical: 4, horizontal: 8),
                         padding: EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: isMe ? Colors.blue[100] : Colors.grey[200],
+                          color: isMe
+                              ? Colors.blue[100]
+                              : Colors.grey[200],
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Column(
@@ -282,16 +358,30 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                           children: [
                             messageWidget,
                             SizedBox(height: 4),
-                            if (isMe)
-                              Icon(
-                                msgData['status'] == 'sent'
-                                    ? Icons.check
-                                    : msgData['status'] == 'delivered'
-                                    ? Icons.done_all
-                                    : Icons.done_all,
-                                size: 16,
-                                color: msgData['status'] == 'seen' ? Colors.blue : Colors.grey,
-                              )
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  _formatTime(msgData['timestamp']),
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    color: Colors.black54,
+                                  ),
+                                ),
+                                SizedBox(width: 6),
+                                if (isMe)
+                                  Icon(
+                                    msgData['status'] == 'sent'
+                                        ? Icons.check
+                                        : Icons.done_all,
+                                    size: 16,
+                                    color:
+                                    msgData['status'] == 'seen'
+                                        ? Colors.blue
+                                        : Colors.grey,
+                                  ),
+                              ],
+                            )
                           ],
                         ),
                       ),
@@ -303,11 +393,16 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
           ),
           Divider(height: 1),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            padding:
+            const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             child: Row(
               children: [
-                IconButton(icon: Icon(Icons.image), onPressed: pickAndSendImage),
-                IconButton(icon: Icon(Icons.attach_file), onPressed: pickAndSendDocument),
+                IconButton(
+                    icon: Icon(Icons.image),
+                    onPressed: pickAndSendImage),
+                IconButton(
+                    icon: Icon(Icons.attach_file),
+                    onPressed: pickAndSendDocument),
                 Expanded(
                   child: TextField(
                     controller: _controller,
@@ -319,11 +414,13 @@ class _ChatScreenState extends State<ChatScreen> with WidgetsBindingObserver {
                       ),
                       filled: true,
                       fillColor: Colors.grey[200],
-                      contentPadding: EdgeInsets.symmetric(horizontal: 16),
+                      contentPadding:
+                      EdgeInsets.symmetric(horizontal: 16),
                     ),
                   ),
                 ),
-                IconButton(icon: Icon(Icons.send), onPressed: sendMessage),
+                IconButton(
+                    icon: Icon(Icons.send), onPressed: sendMessage),
               ],
             ),
           ),
